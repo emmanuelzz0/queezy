@@ -13,6 +13,7 @@ export class GameService {
     private roomService: RoomService;
     private scoreService: ScoreService;
     private timers: Map<string, NodeJS.Timeout> = new Map();
+    private timerIntervals: Map<string, NodeJS.Timeout> = new Map();
 
     constructor(
         roomSvc: RoomService = defaultRoomService,
@@ -125,6 +126,8 @@ export class GameService {
         // Update phase to question
         await this.roomService.updatePhase(roomCode, 'question');
 
+        const timeLimit = room.settings.timeLimit;
+
         // Emit question to room (without correct answer)
         io.to(roomCode).emit('game:question', {
             questionIndex,
@@ -132,24 +135,55 @@ export class GameService {
             question: {
                 text: question.text,
                 options: question.options,
-                timeLimit: room.settings.timeLimit,
+                timeLimit: timeLimit,
                 imageUrl: question.imageUrl,
             },
-            timeLimit: room.settings.timeLimit,
+            timeLimit: timeLimit,
         });
 
-        // Set timer for question timeout
+        // Clear any existing timers/intervals
         this.clearTimer(roomCode);
+
+        // Start timer ticks for synced countdown
+        let timeRemaining = timeLimit;
+        const timerInterval = setInterval(() => {
+            timeRemaining--;
+            io.to(roomCode).emit('timer:tick', { timeRemaining });
+            
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                this.timerIntervals.delete(roomCode);
+                io.to(roomCode).emit('timer:end');
+            }
+        }, 1000);
+
+        // Store the interval so we can clear it
+        this.timerIntervals.set(roomCode, timerInterval);
+        
+        // Set timer for question timeout
         const timer = setTimeout(async () => {
+            this.clearTimerInterval(roomCode);
             await this.questionTimeout(roomCode, io);
-        }, (room.settings.timeLimit + 1) * 1000); // +1 for network latency
+        }, (timeLimit + 1) * 1000); // +1 for network latency
 
         this.timers.set(roomCode, timer);
 
         logger.info(
-            { roomCode, questionIndex, timeLimit: room.settings.timeLimit },
-            'Question shown'
+            { roomCode, questionIndex, timeLimit },
+            'Question shown with timer'
         );
+    }
+
+    // ============================================
+    // Clear timer interval
+    // ============================================
+
+    private clearTimerInterval(roomCode: string): void {
+        const interval = this.timerIntervals.get(roomCode);
+        if (interval) {
+            clearInterval(interval);
+            this.timerIntervals.delete(roomCode);
+        }
     }
 
     // ============================================
@@ -166,12 +200,26 @@ export class GameService {
             a => a.questionIndex === room.currentQuestionIndex
         ) || [];
 
+        logger.info({ 
+            roomCode, 
+            questionIndex: room.currentQuestionIndex,
+            correctAnswer: question.correctAnswer,
+            answersReceived: answers.length,
+            answers: answers.map(a => ({ playerId: a.playerId, answer: a.answer })),
+            players: room.players.map(p => ({ id: p.id, name: p.name })),
+        }, 'Processing question timeout');
+
         // Calculate scores
         const results = await this.scoreService.calculateQuestionResults(
             roomCode,
             question,
             answers
         );
+
+        logger.info({ 
+            roomCode,
+            results: results.map(r => ({ playerId: r.playerId, answer: r.answer, isCorrect: r.isCorrect })),
+        }, 'Calculated results');
 
         // Update player scores
         for (const result of results) {
@@ -358,6 +406,8 @@ export class GameService {
             clearTimeout(timer);
             this.timers.delete(roomCode);
         }
+        // Also clear any interval
+        this.clearTimerInterval(roomCode);
     }
 }
 
