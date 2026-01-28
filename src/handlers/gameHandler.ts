@@ -31,11 +31,12 @@ export function registerGameHandlers(
                 return callback({ success: false, error: 'Only host can start game' });
             }
 
-            // Check minimum players
-            if (room.players.length < room.settings.minPlayers) {
+            // Check minimum players (only count connected players)
+            const connectedPlayers = room.players.filter(p => p.isConnected !== false);
+            if (connectedPlayers.length < room.settings.minPlayers) {
                 return callback({
                     success: false,
-                    error: `Need at least ${room.settings.minPlayers} players to start`,
+                    error: `Need at least ${room.settings.minPlayers} connected players to start`,
                 });
             }
 
