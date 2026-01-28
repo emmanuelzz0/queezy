@@ -6,7 +6,6 @@ import { TypedSocket, TypedServer } from '../types/socket.js';
 import { RoomService } from '../services/roomService.js';
 import { GameService } from '../services/gameService.js';
 import { logger } from '../utils/logger.js';
-import { GamePhase } from '../types/game.js';
 
 export function registerGameHandlers(
     socket: TypedSocket,
@@ -46,7 +45,7 @@ export function registerGameHandlers(
             }
 
             // Start the game
-            const updatedRoom = await gameService.startGame(roomCode);
+            await gameService.startGame(roomCode);
 
             // Notify all clients
             io.to(roomCode).emit('game:started', {

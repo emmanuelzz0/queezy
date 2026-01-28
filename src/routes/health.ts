@@ -32,7 +32,7 @@ healthRouter.get('/', async (req, res) => {
                 database: dbOk ? 'ok' : 'error',
             },
         });
-    } catch (error) {
+    } catch {
         res.status(503).json({
             status: 'error',
             timestamp: new Date().toISOString(),

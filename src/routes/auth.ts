@@ -3,7 +3,7 @@
 // ============================================
 
 import { Router } from 'express';
-import { redis, keys, ttl } from '../config/redis.js';
+import { redis, keys } from '../config/redis.js';
 import { mobileLoginSchema } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 
@@ -83,7 +83,7 @@ authRouter.get('/verify-token/:token', async (req, res) => {
         res.json({
             valid: exists === 1,
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({
             valid: false,
             error: 'Internal server error',

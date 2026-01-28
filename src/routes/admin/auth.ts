@@ -119,7 +119,7 @@ adminAuthRouter.post('/verify', async (req, res) => {
             valid: true,
             admin,
         });
-    } catch (error) {
+    } catch {
         res.status(401).json({ valid: false });
     }
 });

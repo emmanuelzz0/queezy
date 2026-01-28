@@ -5,7 +5,7 @@
 import { TypedSocket, TypedServer } from '../types/socket.js';
 import { RoomService } from '../services/roomService.js';
 import { logger } from '../utils/logger.js';
-import { roomJoinSchema, playerNameSchema, avatarSchema } from '../utils/validation.js';
+import { playerNameSchema, avatarSchema } from '../utils/validation.js';
 
 export function registerRoomHandlers(
     socket: TypedSocket,

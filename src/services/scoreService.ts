@@ -4,7 +4,6 @@
 
 import { Question, Answer, Player } from '../types/game.js';
 import { roomService } from './roomService.js';
-import { logger } from '../utils/logger.js';
 
 // Scoring constants
 const BASE_POINTS = 1000;
@@ -135,7 +134,7 @@ export class ScoreService {
         longestStreak: { playerId: string; streak: number } | null;
     } {
         const totalAnswers = answers.length;
-        const correctAnswers = answers.filter((a, idx) => {
+        const correctAnswers = answers.filter((a, _idx) => {
             const question = questions[a.questionIndex];
             return question && a.answer === question.correctAnswer;
         }).length;

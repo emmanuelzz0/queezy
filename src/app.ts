@@ -69,7 +69,7 @@ app.use('/uploads', express.static('uploads'));
 // Error Handler
 // ============================================
 
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error({ err, url: req.url }, 'Unhandled error');
     res.status(500).json({
         success: false,
