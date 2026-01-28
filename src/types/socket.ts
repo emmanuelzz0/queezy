@@ -161,6 +161,7 @@ export interface ServerToClientEvents {
     'room:kicked': (data: { reason: string }) => void;
     'room:settings-updated': (data: { settings: RoomSettings }) => void;
     'room:player-updated': (data: { playerId: string; jingleId?: string; isReady?: boolean }) => void;
+    'room:all-players-ready': (data: { playerCount: number }) => void;
     'player:joined': (data: { player: Player; playerCount: number }) => void;
     'player:left': (data: { playerId: string; playerCount: number }) => void;
 

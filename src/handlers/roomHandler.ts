@@ -405,6 +405,23 @@ export function registerRoomHandlers(
                 isReady: updatedPlayer.isReady,
             });
 
+            // Check if all connected players are ready
+            if (isReady) {
+                const updatedRoom = await roomService.getRoom(roomCode);
+                if (updatedRoom && updatedRoom.phase === 'lobby') {
+                    const connectedPlayers = updatedRoom.players.filter(p => p.isConnected !== false);
+                    const allReady = connectedPlayers.length >= updatedRoom.settings.minPlayers &&
+                        connectedPlayers.every(p => p.isReady === true);
+                    
+                    if (allReady) {
+                        logger.info({ roomCode, playerCount: connectedPlayers.length }, 'All players ready');
+                        io.to(roomCode).emit('room:all-players-ready', {
+                            playerCount: connectedPlayers.length,
+                        });
+                    }
+                }
+            }
+
             safeCallback({ success: true, player: updatedPlayer });
 
             logger.info({ roomCode, playerId: socket.id, jingleId, isReady }, 'Player updated');
