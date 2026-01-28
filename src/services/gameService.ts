@@ -7,6 +7,7 @@ import { RoomService, roomService as defaultRoomService } from './roomService.js
 import { ScoreService, scoreService as defaultScoreService } from './scoreService.js';
 import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.js';
+import { COUNTDOWN_DURATION, WINNER_JINGLE_DURATION } from '../utils/constants.js';
 
 export class GameService {
     private roomService: RoomService;
@@ -49,6 +50,52 @@ export class GameService {
         }
 
         logger.info({ roomCode }, 'Game starting');
+    }
+
+    // ============================================
+    // Start countdown before first question
+    // ============================================
+
+    async startCountdown(roomCode: string, io: TypedServer): Promise<void> {
+        const room = await this.roomService.getRoom(roomCode);
+        if (!room) throw new Error('Room not found');
+
+        // Update phase to starting
+        await this.roomService.updatePhase(roomCode, 'starting');
+
+        // Emit starting phase with countdown duration
+        io.to(roomCode).emit('game:starting', {
+            countdown: COUNTDOWN_DURATION,
+        });
+
+        logger.info({ roomCode, countdown: COUNTDOWN_DURATION }, 'Countdown started');
+
+        // Emit countdown ticks
+        let count = COUNTDOWN_DURATION;
+        const countdownInterval = setInterval(() => {
+            count--;
+            io.to(roomCode).emit('game:countdown', { count });
+            
+            if (count <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+
+        // Start first question after countdown
+        this.clearTimer(roomCode);
+        const timer = setTimeout(async () => {
+            // Notify that game has started
+            io.to(roomCode).emit('game:started', {
+                phase: 'question',
+                questionCount: room.questions.length,
+                currentQuestion: 0,
+            });
+            
+            // Show first question
+            await this.showQuestion(roomCode, io);
+        }, COUNTDOWN_DURATION * 1000);
+
+        this.timers.set(roomCode, timer);
     }
 
     // ============================================
@@ -136,10 +183,21 @@ export class GameService {
             );
         }
 
+        // Get updated standings and find the question winner (highest points earned this round)
+        const standings = await this.roomService.getLeaderboard(roomCode);
+        const questionWinner = results
+            .filter(r => r.isCorrect && r.pointsEarned > 0)
+            .sort((a, b) => b.pointsEarned - a.pointsEarned)[0];
+        
+        // Get the winner player info
+        const winnerPlayer = questionWinner
+            ? room.players.find(p => p.id === questionWinner.playerId)
+            : null;
+
         // Transition to reveal
         await this.roomService.updatePhase(roomCode, 'reveal');
 
-        // Emit reveal
+        // Emit reveal with winner info for jingle
         io.to(roomCode).emit('game:reveal', {
             correctAnswer: question.correctAnswer,
             results: results.map(r => ({
@@ -150,44 +208,45 @@ export class GameService {
                 newScore: r.newScore,
                 streak: r.streak,
             })),
-            standings: await this.roomService.getLeaderboard(roomCode),
+            standings,
+            // Winner of this question (for jingle)
+            questionWinner: winnerPlayer ? {
+                playerId: winnerPlayer.id,
+                name: winnerPlayer.name,
+                avatar: winnerPlayer.avatar,
+                pointsEarned: questionWinner.pointsEarned,
+                jingleId: winnerPlayer.jingleId,
+            } : null,
         });
 
-        logger.info({ roomCode, questionIndex: room.currentQuestionIndex }, 'Question timeout, revealing');
+        logger.info({ 
+            roomCode, 
+            questionIndex: room.currentQuestionIndex,
+            questionWinner: winnerPlayer?.name || 'none',
+        }, 'Question timeout, revealing');
 
-        // Auto-advance after reveal (or wait for TV to trigger)
+        // Auto-advance after reveal + winner jingle time
+        // If there's a winner, add extra time for jingle
+        const revealDuration = winnerPlayer ? 5000 + WINNER_JINGLE_DURATION : 5000;
+        
         this.clearTimer(roomCode);
         const timer = setTimeout(async () => {
             await this.advanceToNextQuestion(roomCode, io);
-        }, 5000);
+        }, revealDuration);
 
         this.timers.set(roomCode, timer);
     }
 
     // ============================================
-    // Advance to next question or leaderboard
+    // Advance to next question (no leaderboard between questions)
     // ============================================
 
     async advanceToNextQuestion(roomCode: string, io: TypedServer): Promise<void> {
-        const { hasMore, index } = await this.roomService.nextQuestion(roomCode);
+        const { hasMore } = await this.roomService.nextQuestion(roomCode);
 
         if (hasMore) {
-            // Show leaderboard briefly
-            await this.roomService.updatePhase(roomCode, 'leaderboard');
-
-            io.to(roomCode).emit('game:leaderboard', {
-                standings: await this.roomService.getLeaderboard(roomCode),
-                questionIndex: index,
-                totalQuestions: (await this.roomService.getRoom(roomCode))!.questions.length,
-            });
-
-            // Show next question after leaderboard
-            this.clearTimer(roomCode);
-            const timer = setTimeout(async () => {
-                await this.showQuestion(roomCode, io);
-            }, 4000);
-
-            this.timers.set(roomCode, timer);
+            // Go directly to next question (no leaderboard)
+            await this.showQuestion(roomCode, io);
         } else {
             // Game over
             await this.endGame(roomCode, io);

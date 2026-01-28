@@ -51,21 +51,12 @@ export function registerGameHandlers(
             // Start the game
             await gameService.startGame(roomCode);
 
-            // Notify all clients
-            io.to(roomCode).emit('game:started', {
-                phase: 'question',
-                questionCount: room.questions.length,
-                currentQuestion: 0,
-            });
-
             callback({ success: true });
 
-            logger.info({ roomCode, playerCount: room.players.length }, 'Game started');
+            logger.info({ roomCode, playerCount: room.players.length }, 'Game starting with countdown');
 
-            // Start first question after short delay
-            setTimeout(() => {
-                gameService.showQuestion(roomCode, io);
-            }, 2000);
+            // Start countdown phase
+            await gameService.startCountdown(roomCode, io);
         } catch (error) {
             logger.error({ error }, 'Failed to start game');
             callback({ success: false, error: 'Failed to start game' });

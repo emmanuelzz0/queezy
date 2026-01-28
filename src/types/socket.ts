@@ -203,6 +203,13 @@ export interface ServerToClientEvents {
             streak: number;
         }>;
         standings: LeaderboardEntry[];
+        questionWinner?: {
+            playerId: string;
+            name: string;
+            avatar: string;
+            pointsEarned: number;
+            jingleId?: string;
+        } | null;
     }) => void;
     'game:leaderboard': (data: {
         standings: LeaderboardEntry[];
