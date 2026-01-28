@@ -58,27 +58,35 @@ export function registerAnswerHandlers(
 
             await roomService.recordAnswer(roomCode, answerRecord);
 
-            // Notify TV that player answered (don't reveal answer yet)
-            io.to(roomCode).emit('answer:received', {
-                playerId,
-                answerCount: (room.currentAnswers?.length || 0) + 1,
-                totalPlayers: room.players.filter(p => p.isConnected).length,
-            });
-
-            callback({ success: true, accepted: true });
-
-            logger.debug(
-                { roomCode, playerId, questionIndex: room.currentQuestionIndex },
-                'Answer submitted'
-            );
-
-            // Check if all players answered
+            // Get updated answer count
             const updatedRoom = await roomService.getRoom(roomCode);
             const connectedPlayers = updatedRoom!.players.filter(p => p.isConnected).length;
             const answerCount = updatedRoom!.currentAnswers?.filter(
                 a => a.questionIndex === room.currentQuestionIndex
             ).length || 0;
 
+            // Notify TV that player answered (don't reveal answer yet)
+            // Emit both events for compatibility
+            io.to(roomCode).emit('player:answered', {
+                playerId,
+                answeredCount: answerCount,
+                totalPlayers: connectedPlayers,
+            });
+
+            io.to(roomCode).emit('answer:received', {
+                playerId,
+                answerCount,
+                totalPlayers: connectedPlayers,
+            });
+
+            logger.info(
+                { roomCode, playerId, answerCount, totalPlayers: connectedPlayers },
+                'Answer submitted and broadcast'
+            );
+
+            callback({ success: true, accepted: true });
+
+            // Check if all players answered
             if (answerCount >= connectedPlayers) {
                 // All players answered - trigger reveal early
                 io.to(roomCode).emit('answer:all-received', {});
