@@ -154,6 +154,7 @@ export interface ServerToClientEvents {
     'room:created': (data: { roomCode: string; room: Room }) => void;
     'room:joined': (data: { room: Room; players: Player[]; gameState?: GameState }) => void;
     'room:player-joined': (data: { player: Player; playerCount: number }) => void;
+    'room:player-rejoined': (data: { oldPlayerId: string; player: Player | undefined }) => void;
     'room:player-left': (data: { playerId: string; playerCount: number }) => void;
     'room:player-disconnected': (data: { playerId: string }) => void;
     'room:tv-disconnected': (data: Record<string, never>) => void;
