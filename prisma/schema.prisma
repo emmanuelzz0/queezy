@@ -1,0 +1,235 @@
+// ============================================
+// Prisma Schema - Database Models
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Admin & Auth
+// ============================================
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   // bcrypt hashed
+  name         String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Audit trail
+  actions   AdminAction[]
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+model AdminAction {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id])
+  action    String   // e.g., "created_jingle", "deleted_user"
+  target    String?  // ID of affected resource
+  details   Json?    // Additional details
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// Users (Players)
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String
+  avatar    String   // Emoji avatar
+  authProvider String? // "google", "apple", "anonymous"
+  authProviderId String?
+  
+  // Stats
+  gamesPlayed   Int @default(0)
+  totalScore    Int @default(0)
+  wins          Int @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  topics    UserTopic[]
+  gameHistories GameHistory[]
+}
+
+// ============================================
+// Jingles (Winner Celebrations)
+// ============================================
+
+model Jingle {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique // e.g., "confetti-explosion"
+  thumbnail   String   // Emoji for preview
+  gifUrl      String   // Path to GIF file
+  audioUrl    String   // Path to audio file
+  duration    Int      // Duration in milliseconds
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// Quiz Categories
+// ============================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique // e.g., "science"
+  description String
+  icon        String   // Emoji
+  color       String   // Tailwind color class
+  bgGradient  String   // Gradient classes
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  questions   Question[]
+}
+
+// ============================================
+// Questions (Pre-made question bank)
+// ============================================
+
+model Question {
+  id          String   @id @default(cuid())
+  text        String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  correctAnswer String // A, B, C, or D
+  difficulty  Difficulty @default(MEDIUM)
+  imageUrl    String?
+  
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  // Stats
+  timesAsked  Int @default(0)
+  timesCorrect Int @default(0)
+  
+  isActive    Boolean  @default(true)
+  isAIGenerated Boolean @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Unique constraint for text + category
+  @@unique([text, categoryId], name: "text_categoryId")
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ============================================
+// User Custom Topics
+// ============================================
+
+model UserTopic {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  icon        String   // Emoji
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  questions   UserTopicQuestion[]
+}
+
+model UserTopicQuestion {
+  id          String   @id @default(cuid())
+  text        String
+  optionA     String
+  optionB     String
+  optionC     String
+  optionD     String
+  correctAnswer String
+  difficulty  Difficulty @default(MEDIUM)
+  
+  topicId     String
+  topic       UserTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// Game History (for analytics)
+// ============================================
+
+model GameSession {
+  id          String   @id @default(cuid())
+  roomCode    String
+  hostName    String
+  category    String
+  questionCount Int
+  playerCount Int
+  
+  startedAt   DateTime
+  endedAt     DateTime?
+  
+  // Relations
+  histories   GameHistory[]
+}
+
+model GameHistory {
+  id          String   @id @default(cuid())
+  
+  sessionId   String
+  session     GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  playerName  String
+  finalScore  Int
+  finalRank   Int
+  correctAnswers Int
+  totalQuestions Int
+  
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// API Settings
+// ============================================
+
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
