@@ -21,6 +21,8 @@ export function registerGameHandlers(
         try {
             const { roomCode } = data;
 
+            logger.info({ roomCode, socketId: socket.id, role: socket.data.role }, 'game:start request received');
+
             const room = await roomService.getRoom(roomCode);
             if (!room) {
                 return callback({ success: false, error: 'Room not found' });
@@ -28,6 +30,7 @@ export function registerGameHandlers(
 
             // Check if requester is TV/host
             if (socket.data.role !== 'tv') {
+                logger.warn({ roomCode, socketId: socket.id, role: socket.data.role }, 'Non-TV tried to start game');
                 return callback({ success: false, error: 'Only host can start game' });
             }
 

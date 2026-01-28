@@ -414,10 +414,17 @@ export function registerRoomHandlers(
                         connectedPlayers.every(p => p.isReady === true);
                     
                     if (allReady) {
-                        logger.info({ roomCode, playerCount: connectedPlayers.length }, 'All players ready');
+                        logger.info({ roomCode, playerCount: connectedPlayers.length }, 'All players ready - emitting room:all-players-ready');
                         io.to(roomCode).emit('room:all-players-ready', {
                             playerCount: connectedPlayers.length,
                         });
+                    } else {
+                        logger.info({ 
+                            roomCode, 
+                            connectedPlayers: connectedPlayers.length, 
+                            minPlayers: updatedRoom.settings.minPlayers,
+                            readyPlayers: connectedPlayers.filter(p => p.isReady === true).length
+                        }, 'Not all players ready yet');
                     }
                 }
             }
