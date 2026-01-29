@@ -15,6 +15,16 @@ export const statsRouter = Router();
 
 statsRouter.get('/overview', async (req, res) => {
     try {
+        // Fetch each stat individually with fallbacks for resilience
+        const safeCount = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+            try {
+                return await promise;
+            } catch (err) {
+                logger.warn({ err }, 'Failed to fetch individual stat');
+                return fallback;
+            }
+        };
+
         const [
             totalUsers,
             totalQuestions,
@@ -25,26 +35,26 @@ statsRouter.get('/overview', async (req, res) => {
             recentUsers,
             recentGames,
         ] = await Promise.all([
-            prisma.user.count(),
-            prisma.question.count(),
-            prisma.category.count(),
-            prisma.jingle.count(),
-            prisma.gameSession.count(),
-            redis.scard(keys.activeRooms),
-            prisma.user.count({
+            safeCount(prisma.user.count(), 0),
+            safeCount(prisma.question.count(), 0),
+            safeCount(prisma.category.count(), 0),
+            safeCount(prisma.jingle.count(), 0),
+            safeCount(prisma.gameSession.count(), 0),
+            safeCount(redis.scard(keys.activeRooms), 0),
+            safeCount(prisma.user.count({
                 where: {
                     createdAt: {
                         gte: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24h
                     },
                 },
-            }),
-            prisma.gameSession.count({
+            }), 0),
+            safeCount(prisma.gameSession.count({
                 where: {
                     startedAt: {
                         gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
                     },
                 },
-            }),
+            }), 0),
         ]);
 
         res.json({
