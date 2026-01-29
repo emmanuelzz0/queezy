@@ -76,7 +76,7 @@ export class GameService {
         const countdownInterval = setInterval(() => {
             count--;
             io.to(roomCode).emit('game:countdown', { count });
-            
+
             if (count <= 0) {
                 clearInterval(countdownInterval);
             }
@@ -91,7 +91,7 @@ export class GameService {
                 questionCount: room.questions.length,
                 currentQuestion: 0,
             });
-            
+
             // Show first question
             await this.showQuestion(roomCode, io);
         }, COUNTDOWN_DURATION * 1000);
@@ -149,7 +149,7 @@ export class GameService {
         const timerInterval = setInterval(() => {
             timeRemaining--;
             io.to(roomCode).emit('timer:tick', { timeRemaining });
-            
+
             if (timeRemaining <= 0) {
                 clearInterval(timerInterval);
                 this.timerIntervals.delete(roomCode);
@@ -159,7 +159,7 @@ export class GameService {
 
         // Store the interval so we can clear it
         this.timerIntervals.set(roomCode, timerInterval);
-        
+
         // Set timer for question timeout
         const timer = setTimeout(async () => {
             this.clearTimerInterval(roomCode);
@@ -200,8 +200,8 @@ export class GameService {
             a => a.questionIndex === room.currentQuestionIndex
         ) || [];
 
-        logger.info({ 
-            roomCode, 
+        logger.info({
+            roomCode,
             questionIndex: room.currentQuestionIndex,
             correctAnswer: question.correctAnswer,
             answersReceived: answers.length,
@@ -216,7 +216,7 @@ export class GameService {
             answers
         );
 
-        logger.info({ 
+        logger.info({
             roomCode,
             results: results.map(r => ({ playerId: r.playerId, answer: r.answer, isCorrect: r.isCorrect })),
         }, 'Calculated results');
@@ -236,7 +236,7 @@ export class GameService {
         const questionWinner = results
             .filter(r => r.isCorrect && r.pointsEarned > 0)
             .sort((a, b) => b.pointsEarned - a.pointsEarned)[0];
-        
+
         // Get the winner player info
         const winnerPlayer = questionWinner
             ? room.players.find(p => p.id === questionWinner.playerId)
@@ -267,8 +267,8 @@ export class GameService {
             } : null,
         });
 
-        logger.info({ 
-            roomCode, 
+        logger.info({
+            roomCode,
             questionIndex: room.currentQuestionIndex,
             questionWinner: winnerPlayer?.name || 'none',
         }, 'Question timeout, revealing');
@@ -276,7 +276,7 @@ export class GameService {
         // Auto-advance after reveal + winner jingle time
         // If there's a winner, add extra time for jingle
         const revealDuration = winnerPlayer ? 5000 + WINNER_JINGLE_DURATION : 5000;
-        
+
         this.clearTimer(roomCode);
         const timer = setTimeout(async () => {
             await this.advanceToNextQuestion(roomCode, io);
@@ -364,6 +364,10 @@ export class GameService {
         }
 
         logger.info({ roomCode, winner: winner?.name }, 'Game ended');
+
+        // Delete room after game ends - players will be redirected to join screen
+        await this.roomService.deleteRoom(roomCode);
+        logger.info({ roomCode }, 'Room deleted after game end');
     }
 
     // ============================================

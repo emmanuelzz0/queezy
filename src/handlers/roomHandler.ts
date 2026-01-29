@@ -164,6 +164,11 @@ export function registerRoomHandlers(
                 return safeCallback({ success: false, error: 'Room not found' });
             }
 
+            // Check if game is finished - redirect to join screen
+            if (room.phase === 'final' || room.phase === 'final-results') {
+                return safeCallback({ success: false, error: 'Game has ended' });
+            }
+
             // Find player by name (they might have a different socket id now)
             const existingPlayer = room.players.find(
                 p => p.name.toLowerCase() === playerName.toLowerCase()
