@@ -104,7 +104,7 @@ adminAuthRouter.post('/verify', async (req, res) => {
         }
 
         const token = authHeader.slice(7);
-        const payload = jwt.verify(token, config.JWT_SECRET) as AdminJWTPayload;
+        const payload = jwt.verify(token, config.jwt.secret) as AdminJWTPayload;
 
         const admin = await prisma.admin.findUnique({
             where: { id: payload.adminId },
