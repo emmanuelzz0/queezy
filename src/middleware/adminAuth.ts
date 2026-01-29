@@ -19,7 +19,7 @@ export interface AdminRequest extends Request {
 
 // Token payload type
 interface TokenPayload {
-    id: string;
+    adminId: string;
     email: string;
     role: string;
     iat: number;
@@ -50,7 +50,7 @@ export const verifyToken = async (
 
         // Check if admin still exists and is active
         const admin = await prisma.admin.findUnique({
-            where: { id: decoded.id },
+            where: { id: decoded.adminId },
             select: { id: true, email: true, role: true, isActive: true },
         });
 
