@@ -11,6 +11,7 @@ import { logger } from './utils/logger.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin/index.js';
+import { jinglesRouter } from './routes/jingles.js';
 
 // ============================================
 // Create Express App
@@ -61,6 +62,9 @@ app.use('/auth', authRouter);
 
 // Admin dashboard API
 app.use('/api/admin', adminRouter);
+
+// Public jingles API (for TV app)
+app.use('/api/jingles', jinglesRouter);
 
 // Static files for uploads (jingles GIFs/MP3s)
 app.use('/uploads', express.static('uploads'));

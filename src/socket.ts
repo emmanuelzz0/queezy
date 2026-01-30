@@ -85,7 +85,7 @@ export function createSocketServer(httpServer: HttpServer): TypedServer {
         // ============================================
         // Jingle Subscription Events
         // ============================================
-        
+
         socket.on('jingles:subscribe', () => {
             socket.join('jingles-subscribers');
             logger.info({ socketId: socket.id }, '🎵 Client subscribed to jingle updates');
