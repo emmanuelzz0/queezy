@@ -138,7 +138,7 @@ export const createJingleSchema = z.object({
     name: z.string().min(1).max(50),
     slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
     thumbnail: z.string().emoji(),
-    duration: z.number().min(1000).max(10000),
+    duration: z.coerce.number().min(1000).max(60000),
 });
 
 export const createCategorySchema = z.object({
