@@ -6,6 +6,7 @@ import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
+import { setSocketServer } from './utils/jingleEvents.js';
 import type { TypedServer, TypedSocket } from './types/socket.js';
 
 // Handlers
@@ -35,6 +36,9 @@ export function createSocketServer(httpServer: HttpServer): TypedServer {
         pingTimeout: 60000,
         pingInterval: 25000,
     });
+
+    // Set socket server for jingle event broadcasting
+    setSocketServer(io);
 
     // ============================================
     // Connection Handler
@@ -76,6 +80,20 @@ export function createSocketServer(httpServer: HttpServer): TypedServer {
                 socketId: socket.id,
                 error,
             }, '❌ Socket error');
+        });
+
+        // ============================================
+        // Jingle Subscription Events
+        // ============================================
+        
+        socket.on('jingles:subscribe', () => {
+            socket.join('jingles-subscribers');
+            logger.info({ socketId: socket.id }, '🎵 Client subscribed to jingle updates');
+        });
+
+        socket.on('jingles:unsubscribe', () => {
+            socket.leave('jingles-subscribers');
+            logger.info({ socketId: socket.id }, '🎵 Client unsubscribed from jingle updates');
         });
     });
 

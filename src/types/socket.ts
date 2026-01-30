@@ -138,6 +138,10 @@ export interface ClientToServerEvents {
     }) => void;
     'topic:delete': (data: { roomCode: string; topicId: string }) => void;
 
+    // Jingle events (for TV app real-time updates)
+    'jingles:subscribe': () => void;
+    'jingles:unsubscribe': () => void;
+
     // Auth events
     'auth:register-tv': (data: { loginToken: string; deviceId: string }) => void;
     'auth:unregister-tv': (data: { loginToken: string }) => void;
@@ -269,6 +273,9 @@ export interface ServerToClientEvents {
     'topic:created': (data: { topic: CustomTopic }) => void;
     'topic:deleted': (data: { topicId: string }) => void;
     'topic:list': (data: { topics: CustomTopic[] }) => void;
+
+    // Jingle events (broadcast to TV apps)
+    'jingles:updated': () => void;
 
     // Auth events
     'auth:logged-in': (data: { user: AuthUser; topics: UserTopic[] }) => void;

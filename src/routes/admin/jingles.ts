@@ -10,6 +10,7 @@ import { prisma } from '../../config/database.js';
 import { config } from '../../config/index.js';
 import { createJingleSchema } from '../../utils/validation.js';
 import { logger } from '../../utils/logger.js';
+import { broadcastJingleUpdate } from '../../utils/jingleEvents.js';
 
 export const jinglesRouter = Router();
 
@@ -133,6 +134,9 @@ jinglesRouter.post('/',
 
             logger.info({ jingleId: jingle.id, name }, 'Jingle created');
 
+            // Broadcast update to all subscribed clients (TV apps)
+            broadcastJingleUpdate();
+
             res.status(201).json({ success: true, jingle });
         } catch (error) {
             logger.error({ error }, 'Failed to create jingle');
@@ -184,6 +188,9 @@ jinglesRouter.put('/:id',
 
             logger.info({ jingleId: id }, 'Jingle updated');
 
+            // Broadcast update to all subscribed clients (TV apps)
+            broadcastJingleUpdate();
+
             res.json({ success: true, jingle });
         } catch (error) {
             logger.error({ error }, 'Failed to update jingle');
@@ -216,6 +223,9 @@ jinglesRouter.delete('/:id', async (req, res) => {
         await prisma.jingle.delete({ where: { id } });
 
         logger.info({ jingleId: id }, 'Jingle deleted');
+
+        // Broadcast update to all subscribed clients (TV apps)
+        broadcastJingleUpdate();
 
         res.json({ success: true });
     } catch (error) {
