@@ -36,9 +36,9 @@ jinglesRouter.get('/', async (req, res) => {
 jinglesRouter.get('/:slug', async (req, res) => {
     try {
         const jingle = await prisma.jingle.findFirst({
-            where: { 
+            where: {
                 slug: req.params.slug,
-                isActive: true 
+                isActive: true
             },
         });
 

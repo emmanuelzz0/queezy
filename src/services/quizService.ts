@@ -28,16 +28,36 @@ interface GeneratedQuestion {
 
 export class QuizService {
     // ============================================
-    // Generate quiz using Claude AI
+    // Generate quiz - DB first, then AI for missing
     // ============================================
 
-    async generateQuiz(options: QuizGenerateOptions): Promise<Question[]> {
+    async generateQuiz(options: QuizGenerateOptions, excludeQuestionIds: string[] = []): Promise<Question[]> {
         const { category, questionCount, difficulty = 'mixed' } = options;
 
         try {
-            logger.info({ category, questionCount, difficulty }, 'Generating quiz with Claude');
+            logger.info({ category, questionCount, difficulty, excludeCount: excludeQuestionIds.length }, 'Generating quiz');
 
-            const prompt = generateQuizPrompt(category, questionCount, difficulty);
+            // Step 1: Try to get questions from database first
+            const dbQuestions = await this.getQuestionsFromDatabase(category, questionCount * 2, excludeQuestionIds);
+            
+            // If we have enough questions in DB, use them
+            if (dbQuestions.length >= questionCount) {
+                logger.info({ category, fromDb: questionCount }, 'Using questions from database');
+                // Shuffle and take required count
+                const shuffled = this.shuffleArray(dbQuestions);
+                const selected = shuffled.slice(0, questionCount);
+                
+                // Mark these questions as asked
+                await this.incrementTimesAsked(selected.map(q => q.id));
+                
+                return selected;
+            }
+
+            // Step 2: Not enough in DB, generate with AI
+            const neededFromAI = questionCount - dbQuestions.length;
+            logger.info({ category, fromDb: dbQuestions.length, neededFromAI }, 'Generating additional questions with AI');
+
+            const prompt = generateQuizPrompt(category, neededFromAI, difficulty);
 
             const response = await anthropic.messages.create({
                 model: config.claude.model,
@@ -55,26 +75,64 @@ export class QuizService {
             }
 
             // Parse JSON response
-            const parsed = this.parseQuizResponse(textContent.text);
+            const aiQuestions = this.parseQuizResponse(textContent.text);
 
-            if (!parsed || parsed.length === 0) {
-                throw new Error('Failed to parse quiz response');
+            if (!aiQuestions || aiQuestions.length === 0) {
+                // AI failed, use whatever we have from DB
+                logger.warn({ category }, 'AI generation failed, using DB questions only');
+                return dbQuestions.slice(0, questionCount);
             }
 
             logger.info(
-                { category, generated: parsed.length },
+                { category, fromDb: dbQuestions.length, fromAI: aiQuestions.length },
                 'Quiz generated successfully'
             );
 
-            // Optionally save to database for future use
-            await this.saveGeneratedQuestions(parsed, category);
+            // Save AI questions to database for future use
+            await this.saveGeneratedQuestions(aiQuestions, category);
 
-            return parsed;
+            // Combine DB + AI questions
+            const allQuestions = [...dbQuestions, ...aiQuestions];
+            
+            // Mark DB questions as asked
+            await this.incrementTimesAsked(dbQuestions.map(q => q.id));
+
+            return allQuestions.slice(0, questionCount);
         } catch (error) {
             logger.error({ error, category }, 'Failed to generate quiz');
 
-            // Fallback to database questions
-            return this.getQuestionsFromDatabase(category, questionCount);
+            // Fallback to database questions only
+            return this.getQuestionsFromDatabase(category, questionCount, excludeQuestionIds);
+        }
+    }
+
+    // ============================================
+    // Shuffle array (Fisher-Yates)
+    // ============================================
+
+    private shuffleArray<T>(array: T[]): T[] {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    }
+
+    // ============================================
+    // Increment timesAsked for used questions
+    // ============================================
+
+    private async incrementTimesAsked(questionIds: string[]): Promise<void> {
+        if (questionIds.length === 0) return;
+        
+        try {
+            await prisma.question.updateMany({
+                where: { id: { in: questionIds } },
+                data: { timesAsked: { increment: 1 } },
+            });
+        } catch (error) {
+            logger.error({ error }, 'Failed to increment timesAsked');
         }
     }
 
@@ -153,10 +211,14 @@ export class QuizService {
     }
 
     // ============================================
-    // Get questions from database (fallback)
+    // Get questions from database
     // ============================================
 
-    private async getQuestionsFromDatabase(category: string, count: number): Promise<Question[]> {
+    private async getQuestionsFromDatabase(
+        category: string, 
+        count: number,
+        excludeIds: string[] = []
+    ): Promise<Question[]> {
         try {
             const dbCategory = await prisma.category.findFirst({
                 where: {
@@ -175,6 +237,8 @@ export class QuizService {
                 where: {
                     categoryId: dbCategory.id,
                     isActive: true,
+                    // Exclude already-used questions
+                    ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
                 },
                 take: count,
                 orderBy: {
